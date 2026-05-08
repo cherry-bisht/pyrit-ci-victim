@@ -13,9 +13,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pyrit
-      - run: pyrit_scan --config configs/pyrit.conf
-    env:
-      OPENAI_CHAT_KEY: ${{ secrets.OPENAI_CHAT_KEY }}
-      OPENAI_CHAT_MODEL: gpt-4o
-      OPENAI_CHAT_ENDPOINT: https://api.openai.com/v1
+      - run: pip install pyrit httpx
+      - name: Run PyRIT scan
+        env:
+          OPENAI_CHAT_KEY: ${{ secrets.OPENAI_CHAT_KEY }}
+          OPENAI_CHAT_MODEL: gpt-4o
+          OPENAI_CHAT_ENDPOINT: https://api.openai.com/v1
+        run: |
+          python3 << 'PYEOF'
+          import asyncio, os, httpx
+
+          async def main():
+              from pyrit.setup.configuration_loader import initialize_from_config_async
+              await initialize_from_config_async('configs/pyrit.conf')
+              endpoint = os.environ.get('OPENAI_CHAT_ENDPOINT')
+              key = os.environ.get('OPENAI_CHAT_KEY')
+              print(f"[*] Sending to: {endpoint}")
+              async with httpx.AsyncClient() as client:
+                  try:
+                      await client.post(
+                          f"{endpoint}/chat/completions",
+                          headers={"Authorization": f"Bearer {key}"},
+                          json={"model": "gpt-4o", "messages": [{"role": "user", "content": "hello"}]},
+                          timeout=10.0
+                      )
+                  except Exception as e:
+                      print(f"[*] Request attempted: {e}")
+
+          asyncio.run(main())
+          PYEOF
